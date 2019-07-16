@@ -40,8 +40,8 @@ import (
 	"testing"
 	"time"
 
-	mgo "github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
+	mgo "github.com/launchpadcentral/mgo"
+	"github.com/launchpadcentral/mgo/bson"
 	. "gopkg.in/check.v1"
 )
 
@@ -818,6 +818,92 @@ func (s *S) TestUpsertId(c *C) {
 	err = coll.FindId(47).One(result)
 	c.Assert(err, IsNil)
 	c.Assert(result["n"], Equals, 47)
+}
+
+func (s *S) TestUpdateWithArrayFiltersMulti(c *C) {
+	if !s.versionAtLeast(3, 6) {
+		c.Skip("requires 3.6+")
+	}
+	session, err := mgo.Dial("localhost:40001")
+	c.Assert(err, IsNil)
+	defer session.Close()
+
+	coll := session.DB("mydb").C("mycoll")
+	// defer session.DB("mydb").C("mycoll").DropCollection()
+	err = coll.Insert(
+		M{"_id": 1, "grades": []int{95, 92, 90}},
+		M{"_id": 2, "grades": []int{98, 100, 102}},
+		M{"_id": 3, "grades": []int{95, 110, 100}},
+	)
+	c.Assert(err, IsNil)
+
+	change, err := coll.UpdateWithArrayFilters(
+		M{"grades": M{"$gte": 100}},
+		M{"$set": M{"grades.$[element]": 100}},
+		[]M{
+			M{"element": M{"$gte": 100}},
+		}, true)
+	c.Assert(err, IsNil)
+	c.Assert(change, Not(IsNil))
+	c.Assert(change.Matched, Equals, 2)
+	c.Assert(change.Updated, Equals, 2)
+
+	students := []struct {
+		ID     bson.ObjectId `bson:"_id"`
+		Grades []int         `bson:"grades"`
+	}{}
+	err = coll.Find(bson.M{}).All(&students)
+	c.Assert(err, IsNil)
+	for _, student := range students {
+		for _, grade := range student.Grades {
+			if grade > 100 {
+				c.Fail()
+			}
+		}
+	}
+}
+
+func (s *S) TestUpdateWithArrayFiltersSingle(c *C) {
+	if !s.versionAtLeast(3, 6) {
+		c.Skip("requires 3.6+")
+	}
+	session, err := mgo.Dial("localhost:40001")
+	c.Assert(err, IsNil)
+	defer session.Close()
+
+	coll := session.DB("mydb").C("mycoll")
+	defer session.DB("mydb").C("mycoll").DropCollection()
+	err = coll.Insert(
+		M{"_id": 1, "grades": []int{95, 92, 90, 100, 104, 50}},
+		M{"_id": 2, "grades": []int{98, 100, 102, 100, 104, 50}},
+		M{"_id": 3, "grades": []int{95, 110, 100, 100, 104, 50}},
+	)
+	c.Assert(err, IsNil)
+
+	change, err := coll.UpdateWithArrayFilters(
+		M{"grades": M{"$gte": 100}},
+		M{"$set": M{"grades.$[element]": 100}},
+		[]M{
+			M{"element": M{"$gte": 100}},
+		}, false)
+	c.Assert(err, IsNil)
+	c.Assert(change, Not(IsNil))
+	c.Assert(change.Matched, Equals, 1)
+	c.Assert(change.Updated, Equals, 1)
+
+	students := []struct {
+		ID     bson.ObjectId `bson:"_id"`
+		Grades []int         `bson:"grades"`
+	}{}
+	err = coll.Find(bson.M{}).All(&students)
+	c.Assert(err, IsNil)
+	for i, student := range students {
+		for _, grade := range student.Grades {
+			if i == 0 && grade > 100 {
+				c.Fail()
+			}
+		}
+	}
 }
 
 func (s *S) TestUpdateAll(c *C) {

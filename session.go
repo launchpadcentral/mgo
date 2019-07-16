@@ -45,7 +45,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/globalsign/mgo/bson"
+	"github.com/launchpadcentral/mgo/bson"
 )
 
 // Mode read preference mode. See Eventual, Monotonic and Strong for details
@@ -2912,7 +2912,6 @@ func (p *Pipe) SetMaxTime(d time.Duration) *Pipe {
 	return p
 }
 
-
 // Collation allows to specify language-specific rules for string comparison,
 // such as rules for lettercase and accent marks.
 // When specifying collation, the locale field is mandatory; all other collation
@@ -3073,6 +3072,33 @@ func (c *Collection) UpdateAll(selector interface{}, update interface{}) (info *
 		Multi:      true,
 	}
 	lerr, err := c.writeOp(&op, true)
+	if err == nil && lerr != nil {
+		info = &ChangeInfo{Updated: lerr.modified, Matched: lerr.N}
+	}
+	return info, err
+}
+
+// UpdateWithArrayFilters allows passing an array of filter documents that determines
+// which array elements to modify for an update operation on an array field. The multi parameter
+// determines whether the update should update multiple documents (true) or only one document (false).
+//
+// See example: https://docs.mongodb.com/manual/reference/method/db.collection.update/#update-arrayfiltersi
+//
+// Note this method is only compatible with MongoDB 3.6+.
+func (c *Collection) UpdateWithArrayFilters(selector, update, arrayFilters interface{}, multi bool) (*ChangeInfo, error) {
+	if selector == nil {
+		selector = bson.D{}
+	}
+	op := updateOp{
+		Collection:   c.FullName,
+		Selector:     selector,
+		Update:       update,
+		Flags:        2,
+		Multi:        multi,
+		ArrayFilters: arrayFilters,
+	}
+	lerr, err := c.writeOp(&op, true)
+	var info *ChangeInfo
 	if err == nil && lerr != nil {
 		info = &ChangeInfo{Updated: lerr.modified, Matched: lerr.N}
 	}

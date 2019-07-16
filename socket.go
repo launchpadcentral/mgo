@@ -33,7 +33,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/globalsign/mgo/bson"
+	"github.com/launchpadcentral/mgo/bson"
 )
 
 type replyFunc func(err error, reply *replyOp, docNum int, docData []byte)
@@ -158,12 +158,13 @@ type insertOp struct {
 }
 
 type updateOp struct {
-	Collection string      `bson:"-"` // "database.collection"
-	Selector   interface{} `bson:"q"`
-	Update     interface{} `bson:"u"`
-	Flags      uint32      `bson:"-"`
-	Multi      bool        `bson:"multi,omitempty"`
-	Upsert     bool        `bson:"upsert,omitempty"`
+	Collection   string      `bson:"-"` // "database.collection"
+	Selector     interface{} `bson:"q"`
+	Update       interface{} `bson:"u"`
+	Flags        uint32      `bson:"-"`
+	Multi        bool        `bson:"multi,omitempty"`
+	Upsert       bool        `bson:"upsert,omitempty"`
+	ArrayFilters interface{} `bson:"arrayFilters,omitempty"`
 }
 
 type deleteOp struct {
